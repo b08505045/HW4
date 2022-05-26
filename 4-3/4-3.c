@@ -3,10 +3,13 @@
 #include <string.h>
 #include <math.h>
 #include <stdbool.h>
+#include <assert.h>
 
+// Boom record the days which will boom to cuurent day
 typedef struct Boom{
     int day;
     struct Boom *next;
+    struct Boom *prev;
 }Boom;
 
 typedef struct Command{
@@ -14,13 +17,69 @@ typedef struct Command{
     int cmd, i, j, k;
     bool processed; // processed = 1 if have been processed
     int num_of_boom; // the number of times this day been boomed
-    int *data, *group; // data record the day which call boom with this day
-    Boom *head, *tail, *tmp; // record the days which will boom to this day
+    int *data; // data record the day which call boom with this day
+    Boom *head, *tail; // record the days which will boom to this day
 }Command;
 
+// Disjoint set of Shop
 typedef struct Shop{
     int parent, rank;
 }Shop;
+
+typedef struct Change{
+    int index, num;
+    struct Change *next;
+}Change;
+
+Change * Change_new(int index, int num){
+    Change *C = malloc(sizeof(Change));
+    if (!C)
+        return C;
+    C -> index = index;
+    C -> num = num;
+    C -> next = NULL;
+    return C;
+}
+
+typedef struct Stack{
+    Change *top;
+}Stack;
+
+Stack * stack_new(){
+    Stack *s = malloc(sizeof(Stack));
+    if (!s)
+        return s;
+    s -> top = NULL;
+    return s;
+}
+
+bool stack_is_empty(Stack *self){
+    assert(self);
+    return !(self -> top) ? true : false;
+}
+
+Change * stack_peek(Stack *self){
+    assert(!stack_is_empty(self));
+    return self -> top;
+}
+
+bool stack_push(Stack *self, int index, int num){
+    Change *n = Change_new(index, num);
+    if (!n) 
+        return false;
+    n -> next = self -> top; // n -> next = NULL
+    self -> top = n; // n = top
+    return true;
+}
+
+void stack_pop(Stack *self){
+    assert(!stack_is_empty(self));
+    Change *temp = self -> top;
+    // int popped = temp -> data;
+    self -> top = temp -> next;
+    free(temp);
+    // return popped;
+}
 
 int find_set(Shop *S, int i){
     // find the root
@@ -39,46 +98,67 @@ int find_set(Shop *S, int i){
     return root;
 }
 
-void merge(Shop *S, int i, int j, int *num_of_shops){
+int merge(Shop *S, int i, int j, int *num_of_shops){
     int root_i = find_set(S, i), root_j = find_set(S, j);
     // union by rank
+    // i's root != j's root, return changed index
     if(root_i != root_j){
+        int index;
         if(S[root_i].rank >= S[root_j].rank){
+            index = root_j; // ori must be 1
+            // update parent
             S[root_j].parent = root_i;
             if(S[root_i].rank == S[root_j].rank)
                 S[root_i].rank++;
         }
-        else
+        else{
+            index = root_i;
             S[root_i].parent = root_j;
-        
+        }
         (*num_of_shops)--;
+        return index;
     }
+    // i's root = j's root, merge do nothing, return 0
+    else return 0;
 }
 
 void insert(Boom *head, Boom *tail, int day){
-    if(!head){
-        Boom *B = calloc(1, sizeof(Boom));
-        B -> day = day;
+    Boom *B = calloc(1, sizeof(Boom));
+    B -> day = day;
+    if(!head)
         head = B;
-        tail = B;
-    }
     else{
-        Boom *B = calloc(1, sizeof(Boom));
-        B -> day = day;
         tail -> next = B;
-        tail = B;
+        B -> prev = tail;
     }
+    tail = B;
+}
+
+void delete_tail(Boom *tail){
+    Boom *del = tail;
+    tail = tail -> prev;
+    tail -> next = NULL;
+    free(del);
+}
+
+void delete_head(Boom *head){
+    Boom *del = head;
+    head = head -> next;
+    head -> prev = NULL;
+    free(del);
 }
 
 int main() {
     int N, M, num_of_query = 0; // N = number of nodes, M = number of days
+    int *query = malloc((M + 1) * sizeof(int)); // record the sequence of query, ex. if now query is called twice and is at day 8, then query[8] = 2; 
     scanf("%d %d", &N, &M);
     printf("N : %d, M : %d\n", N, M);
-    Command *Cmd = calloc(M, sizeof(Command));
+    Command *Cmd = calloc((M + 1), sizeof(Command));
     char *c = calloc(6, sizeof(char));
+
     // cmd : 1 = merge, 2 = query, 3 = boom
     // read all commands first
-    for(int i = 0; i < M; i++){
+    for(int i = 1; i <= M; i++){
         // printf("i = %d\n", i);
         scanf("%s", c);
         if(!strcmp(c, "merge")){
@@ -89,7 +169,7 @@ int main() {
         else if(!strcmp(c, "query")){
             // query = 2
             Cmd[i].cmd = 2;
-            num_of_query++;
+            query[i] = num_of_query++; // start from 0, it's (num_of_query)-th times query at day i  
         }
         else{
             // boom = 3
@@ -100,47 +180,132 @@ int main() {
             insert(Cmd[Cmd[i].k].head, Cmd[Cmd[i].k].tail, i);
         }
     }
-
-    int *ans = malloc(num_of_query * sizeof(int)); // answer
-    int query = num_of_query, num_of_shops = N; // num_of_shops = number of current shops
-    int i = 0, idx_ans = 0;
+    free(c);
+    printf("Let's process it offline!\n");
     Shop *S = calloc(N, sizeof(Shop)); // Shop using disjoint set
+    int num_of_shops = N; // num_of_shops = number of current shops
+    int *ans = malloc(num_of_query * sizeof(int)); // answer
 
-    printf("Let's Start !\n");
-    while(i < M && query >= 0){
-        if(!Cmd[i].processed){
+    bool boom = 0; // boom = 1 means start finding each boom
+    // reverse_element record all history of changed, reverse_times record each times need to reverse in each step
+    Stack *reverse_element = stack_new(), *reverse_times = stack_new();
+    // printf("Let's Start !\n");
+    int reverse = 0; // reverse = 1 means it's time to reverse !
+    int jump = 0; // jump = 1 means just jump to boom!
+    int i = 0;
+
+    while(num_of_query > 0){
+        // i-th day haven't been processed
+        if(i < M && !Cmd[i].processed){
+            Cmd[i].processed = 1;
+            // -------------------------------------------------------------processe command
+            // merge
             if(Cmd[i].cmd == 1){
-                // merge
                 printf("merge !\n");
-                merge(S, Cmd[i].i, Cmd[i].j, &num_of_shops);
+                if(!boom)
+                    merge(S, Cmd[i].i, Cmd[i].j, &num_of_shops);
+                // record change
+                else{
+                    int index = merge(S, Cmd[i].i, Cmd[i].j, &num_of_shops);
+                    if(index){
+                        stack_push(reverse_element, index, -1);
+                        (stack_peek(reverse_times) -> num)++;
+                    }
+                }
             }
+            // query
             else if(Cmd[i].cmd == 2){
                 printf("query !\n");
-                // query
-                ans[idx_ans++] = num_of_shops;
-                query--;
+                ans[query[i]] = num_of_shops;
+                num_of_query--;
+            }
+            else if(Cmd[i].cmd == 3){          
+                // if encounter the boom day which have been or can't processed, break
+                if(!jump){
+                    printf("reverse!\n");
+                    Cmd[i].processed = 0;
+                    reverse = 1;
+                    int j = stack_peek(reverse_times) -> num;
+                    Change *tmp;
+                    // reverse
+                    for(j; j > 0; j--){
+                        // tmp = each reverse element
+                        tmp = stack_peek(reverse_element);
+                        if(S[S[tmp -> index].parent].rank == S[tmp -> index].rank)
+                            S[S[tmp -> index].parent].rank--;
+                        S[tmp -> index].parent = 0;
+                        num_of_shops++;
+                        stack_pop(reverse_element);
+                    }
+                    // tmp now is the day which jump from
+                    tmp = stack_peek(reverse_times);
+                    Cmd[tmp -> index].num_of_boom--;
+                    if(Cmd[tmp -> index].num_of_boom){
+                        delete_head(Cmd[tmp -> index].head);
+                        i =  Cmd[tmp -> index].head -> day;
+                        tmp -> num = 0;
+                    }
+                    else{
+                        // all jumps processed
+                        i = tmp -> index + 1;
+                        stack_pop(reverse_times);
+                    }
+                }
+                else printf("just pass\n");
+            }
+            // -------------------------------------------------------------
+            jump = 0;
+            // printf("num of shops : %d\n", num_of_shops);
+            //--------------------------------------------------------------check if jump
+            if(!reverse){
+                if(Cmd[i].num_of_boom){
+                    printf("jump!\n");
+                    // current day will be boomed int the future
+                    jump = 1;
+                    boom = 1;
+                    stack_push(reverse_times, i, 0);
+                    i = Cmd[i].head -> day;
+                }
+                else i++;
             }
             else{
-                // boom
-                printf("boom !\n");
+                i++; // keep going
+                reverse = 0;
             }
-            // printf("num of shops : %d\n", num_of_shops);
-            //---------------------------------------------------------------------------------------
-            if(Cmd[i].num_of_boom){
-                Cmd[i].group = calloc(N, sizeof(int));
-                for(int j = 0; j < N; j++){
-                    Cmd[i].group[j] = group[j];
-                }
-                Cmd[i].tmp = Cmd[i].head;
-                i = Cmd[i].tmp -> day;
-                Cmd[i].tmp = Cmd[i].head -> next;
-            }
-            //---------------------------------------------------------------------------------------
-            Cmd[i].processed = 1;
+            //-------------------------------------------------------------------------------
         }
-        i++;
+        // encounter processed node, reverse !
+        else{
+            printf("reverse!\n");
+            int j = stack_peek(reverse_times) -> num;
+            Change *tmp;
+            // reverse
+            for(j; j > 0; j--){
+                // tmp = each reverse element
+                tmp = stack_peek(reverse_element);
+                if(S[S[tmp -> index].parent].rank == S[tmp -> index].rank)
+                    S[S[tmp -> index].parent].rank--;
+                S[tmp -> index].parent = 0;
+                num_of_shops++;
+                stack_pop(reverse_element);
+            }
+            // tmp now is the day which jump from
+            tmp = stack_peek(reverse_times);
+            Cmd[tmp -> index].num_of_boom--;
+            if(Cmd[tmp -> index].num_of_boom){
+                delete_head(Cmd[tmp -> index].head);
+                i =  Cmd[tmp -> index].head -> day;
+                tmp -> num = 0;
+            }
+            else{
+                 // all jumps processed
+                i = tmp -> index + 1;
+                stack_pop(reverse_times);
+            }
+        }
     }
     for(int i = 0; i < num_of_query; i++){
         printf("%d\n", ans[i]);
     }
+    return 0;
 }
