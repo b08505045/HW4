@@ -52,12 +52,11 @@ Stack * stack_new(){
 }
 
 bool stack_is_empty(Stack *self){
-    assert(self);
-    return !(self -> top) ? true : false;
+    if(!self) return false;
+    else return !(self -> top) ? true : false;
 }
 
 Change * stack_peek(Stack *self){
-    assert(!stack_is_empty(self));
     return self -> top;
 }
 
@@ -71,10 +70,10 @@ bool stack_push(Stack *self, int index, int num){
 }
 
 void stack_pop(Stack *self){
-    assert(!stack_is_empty(self));
     Change *temp = self -> top;
     // int popped = temp -> data;
     self -> top = temp -> next;
+    temp -> next = NULL;
     free(temp);
     // return popped;
 }
@@ -128,10 +127,10 @@ Boom * new(int day){
     return B;
 }
 
-void delete_head(Boom *head){
-    Boom *del = head;
-    head = head -> next;
-    free(del);
+Boom * delete_head(Boom *head){
+    Boom *tmp = head -> next;
+    free(head);
+    return tmp;
 }
 
 int main() {
@@ -289,7 +288,7 @@ int main() {
                     tmp = stack_peek(reverse_times);
                     Cmd[tmp -> index].num_of_boom--;
                     if(Cmd[tmp -> index].num_of_boom){
-                        delete_head(Cmd[tmp -> index].head);
+                        Cmd[tmp -> index].head = delete_head(Cmd[tmp -> index].head);
                         i =  Cmd[tmp -> index].head -> day;
                         tmp -> num = 0;
                     }
@@ -352,7 +351,7 @@ int main() {
             Cmd[tmp -> index].num_of_boom--;
             // printf("%d\n", Cmd[tmp -> index].num_of_boom);
             if(Cmd[tmp -> index].num_of_boom){
-                delete_head(Cmd[tmp -> index].head);
+                Cmd[tmp -> index].head = delete_head(Cmd[tmp -> index].head);
                 i =  Cmd[tmp -> index].head -> day;
                 tmp -> num = 0;
             }
