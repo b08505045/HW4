@@ -13,13 +13,30 @@ typedef struct treap{
     int size, val, pri; // key{size, val}, prioty
     long long sum;
     bool rev;
-    struct treap *left, *right;
+    struct treap *left, *right, *next; // ptr next is used in Stack
 }treap;
 
 typedef struct Stack{
-    int num;
     treap *top;
 }Stack;
+
+bool stack_is_empty(Stack *self){
+    return !(self->top) ? true : false;
+}
+
+bool stack_push(Stack *self, treap *t){
+    t -> next = self -> top;
+    self -> top = t;
+    return true;
+}
+
+treap * stack_peek(Stack *self){
+    return self -> top;
+}
+
+void stack_pop(Stack *self){
+    self -> top = self -> top -> next;
+}
 
 treap * new(int val){
     treap *t = malloc(sizeof(treap));
@@ -80,73 +97,108 @@ treap * merge(treap *a, treap *b){
 
 // split to two array, with a whose key <= p and b whose key > p
 void split(treap* t, int p, treap *a, treap *b){
-    printf("split!\n");
-    if(t == NULL){
-        printf("NULL\n");
-        a = NULL;
-        b = NULL;
-    }
-    else{
-        printf("current value : %d, ", t -> val);
-        printf("cuurent p : %d\n", p);
-        if(t -> rev)
-            push(t);
-        if(t -> left){
-            if(t -> left -> size >= p){
-                printf("t's left size >= p\n");
-                b = t;
-                printf("b's value : %d\n", b -> val);
-                // push(b);
-                split(t -> left, p, a, b -> left);
-                pull(b);
+    Stack *stk = calloc(1, sizeof(Stack));
+    treap *tmp_t = t, *tmp_a = a, *tmp_b = b;
+    bool find_a = 0, find_b = 0;
+    while(tmp_t){
+        printf("currnet node : %d\n", tmp_t -> val);
+        if(tmp_t -> rev)
+            push(tmp_t);
+        if(tmp_t -> left){
+            if(tmp_t -> left -> size >= p){
+                tmp_b = tmp_t;
+                if(!find_b){
+                    b = tmp_b;
+                    find_b = 1;
+                }
+                printf("b : %d\n", tmp_b -> val);
+                if(tmp_b -> rev)
+                    push(tmp_b);
+                stack_push(stk, tmp_b); // used to pull after
+                tmp_t = tmp_t -> left;
+                tmp_b = tmp_b -> left;
             }
             else{
-                printf("t's left size < p\n");
-                a = t;
-                printf("a's value : %d\n", a -> val);
-                // push(a);
-                split(t -> right, p - (t -> left -> size) - 1, a -> right, b);
-                pull(a);
+                tmp_a = tmp_t;
+                if(!find_a){
+                    a = tmp_a;
+                    find_a = 1;
+                }
+                printf("a : %d\n", tmp_a -> val);
+                push(tmp_a);
+                stack_push(stk, tmp_a); // used to pull after
+                p -= (tmp_t -> left -> size) - 1;
+                tmp_t = tmp_t -> right;
+                tmp_a = tmp_a -> right; 
+                printf("move to %d\n", tmp_t -> val);
             }
         }
         // current node has no left child
         else{
-            printf("cuurent node has no left child\n");
-            if(t -> right){
-                if(t -> right -> size < p){
-                    b = t;
-                    printf("b's value : %d\n", b -> val);
-                    // push(b);
-                    split(t -> left, p, a, b -> left);
-                    pull(b);
+            printf("current node has no left child\n");
+            if(tmp_t -> right){
+                if(tmp_t -> right -> size < p){
+                    tmp_b = tmp_t;
+                    if(!find_b){
+                        b = tmp_b;
+                        find_b = 1;
+                    }
+                    printf("b : %d\n", tmp_b -> val);
+                    push(tmp_b);
+                    stack_push(stk, tmp_b);
+                    tmp_t = tmp_t -> left;
+                    tmp_b = tmp_b -> left;
                 }
                 else{
-                    a = t;
-                    printf("a's value : %d\n", a -> val);
-                    // push(a);
-                    split(t -> right, p - 1, a -> right, b);
-                    pull(a);
+                    tmp_a = tmp_t;
+                    if(!find_a){
+                        a = tmp_a;
+                        find_a = 1;
+                    }
+                    printf("a : %d\n", tmp_a -> val);
+                    push(tmp_a);
+                    stack_push(stk, tmp_a);
+                    p -=(tmp_t -> left -> size) - 1;
+                    tmp_t = tmp_t -> right;
+                    tmp_a = tmp_a -> right;
                 }
             }
-            // current node is leaf node
+            // current node is leaf
             else{
-                printf("cuurent node is leaf\n");
+                printf("current node is leaf\n");
                 if(p > 0){
-                    a = t;
-                    printf("a's value %d\n", a -> val);
-                    // push(a);
-                    split(t -> right, p - 1, a -> right, b);
-                    pull(a);
+                    tmp_a = tmp_t;
+                    if(!find_a){
+                        a = tmp_a;
+                        find_a = 1;
+                    }
+                    printf("a : %d\n", tmp_a -> val);
+                    push(tmp_a);
+                    stack_push(stk, tmp_a);
+                    tmp_t = tmp_t -> right;
+                    tmp_a = tmp_a -> right;
+                    p--;
                 }
                 else{
-                    b = t;
-                    printf("b's value %d\n", b -> val);
-                    // push(b);
-                    split(t -> left, p, a, b -> left);
-                    pull(b);
+                    tmp_b = tmp_t;
+                    if(!find_b){
+                        b = tmp_b;
+                        find_b = 1;
+                    }
+                    printf("b : %d\n", tmp_b -> val);
+                    push(tmp_b);
+                    stack_push(stk, tmp_b);
+                    tmp_t = tmp_t -> left;
+                    tmp_b = tmp_b -> left;
                 }
             }
         }
+    }
+    printf("pull\n");
+    tmp_a = tmp_b = NULL;
+    while(!stack_is_empty(stk)){
+        pull(stack_peek(stk));
+        stack_pop(stk);
     }
 }
 
@@ -174,10 +226,10 @@ long long getsum(treap *t, int l, int r){
     printf("a's sum : %lld\n", a -> sum);
     printf("b's val : %d\n", b -> val);
     printf("b's sum : %lld\n", b -> sum);
-    split(b, r - l + 1, c, d);
-    long long sum = c -> sum;
-    merge(a, merge(c, d));
-    return sum;
+    // split(b, r - l + 1, c, d);
+    // long long sum = c -> sum;
+    // merge(a, merge(c, d));
+    // return sum;
 }
 
 void reverse (treap *t , int l , int r){
@@ -245,7 +297,9 @@ int main() {
     tmp = NULL;
     printf("t's val : %d, sum : %lld, size : %d\n", t -> val, t -> sum, t -> size);
     printf("t's left val : %d, sum : %lld, size : %d\n", t -> left -> val, t -> left -> sum, t -> left -> size);
-    printf("t's right val : %d, sum : %lld, size : %d\n", t -> right -> val, t -> right -> sum, t -> right -> size);
+    printf("t's left right val : %d, sum : %lld, size : %d\n", t -> left -> right -> val, t -> left -> right -> sum, t -> left -> right -> size);
+    printf("t's left rihgt left val : %d\n", t -> left -> right -> left -> val);
+    printf("t's left rihgt left left val : %d\n", t -> left -> right -> left -> left -> val);
     
     printf("\nread input\n\n");
     for(int i = 1; i <= Q; i++){
