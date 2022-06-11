@@ -40,26 +40,25 @@ void stack_pop(Stack *self){
 
 treap * new(int val){
     treap *t = malloc(sizeof(treap));
-    t -> left = NULL;
-    t -> right = NULL;
+    t -> left = t -> right = NULL;
+    t -> val = t -> sum = val;
     t -> size = 1;
-    t -> val = val;
-    t -> sum = val;
     t -> pri = rand();
     t -> rev = false;
     return t;
 }
 
 void push(treap *t){
-    if (!t) return;
-    treap *tmp = t -> left;
-    t -> left = t -> right;
-    t -> right = tmp;
-    if (t -> left)
-        t -> left -> rev ^ t -> rev;
-    if (t -> right)
-        t -> right -> rev ^ t -> rev;
-    t -> rev = false;
+    if(t){
+        treap *tmp = t -> left;
+        t -> left = t -> right;
+        t -> right = tmp;
+        if(t -> left)
+            t -> left -> rev ^= t -> rev;
+        if(t -> right)
+            t -> right -> rev ^= t -> rev;
+        t -> rev = false;
+    }
 }
 
 void pull(treap *t){
@@ -77,197 +76,297 @@ void pull(treap *t){
 }
 
 treap * merge(treap *a, treap *b){
-    // leaf node
-    if(!a) return b;
-    if(!b) return a;
-    // check priority
-    if(a -> pri > b -> pri){
-        if(a -> rev)
-            push(a);
-        a -> right = merge(a -> right, b);
-        pull(a); // update size and sum
-        return a;
-    }
-    if(b -> rev)
-        push(b);
-    b -> left = merge(a, b -> left);
-    pull(b);
-    return b;
-}
-
-// split to two array, with a whose key <= p and b whose key > p
-void split(treap* t, int p, treap *a, treap *b){
+    // printf("merge \n");
+    treap *t = NULL, *tmp_t = NULL, *tmp_a = a, *tmp_b = b, *tmp;
     Stack *stk = calloc(1, sizeof(Stack));
-    treap *tmp_t = t, *tmp_a = a, *tmp_b = b;
-    bool find_a = 0, find_b = 0;
-    while(tmp_t){
-        printf("currnet node : %d\n", tmp_t -> val);
-        if(tmp_t -> rev)
-            push(tmp_t);
-        if(tmp_t -> left){
-            if(tmp_t -> left -> size >= p){
-                tmp_b = tmp_t;
-                if(!find_b){
-                    b = tmp_b;
-                    find_b = 1;
-                }
-                printf("b : %d\n", tmp_b -> val);
-                if(tmp_b -> rev)
-                    push(tmp_b);
-                stack_push(stk, tmp_b); // used to pull after
-                tmp_t = tmp_t -> left;
-                tmp_b = tmp_b -> left;
+    int condition = 0;
+    bool find = 0, left = 0; // find = 1 when root decided, left = 1 when finding left child
+    while(1){
+        if(tmp_a){
+            if(tmp_b){
+                if(tmp_a -> pri > tmp_b -> pri)
+                    condition = 1;
+                else
+                    condition = 2;
             }
+            // b is NULL
             else{
-                tmp_a = tmp_t;
-                if(!find_a){
-                    a = tmp_a;
-                    find_a = 1;
-                }
-                printf("a : %d\n", tmp_a -> val);
-                push(tmp_a);
-                stack_push(stk, tmp_a); // used to pull after
-                p -= (tmp_t -> left -> size) - 1;
-                tmp_t = tmp_t -> right;
-                tmp_a = tmp_a -> right; 
-                printf("move to %d\n", tmp_t -> val);
+                printf("b is NULL\n");
+                condition = 1;
             }
         }
-        // current node has no left child
+        // a is NULL
+        else if(tmp_b){
+            printf("a is NULL\n");
+            condition = 2;
+        }
+        // a and b are NULL
         else{
-            printf("current node has no left child\n");
-            if(tmp_t -> right){
-                if(tmp_t -> right -> size < p){
-                    tmp_b = tmp_t;
-                    if(!find_b){
-                        b = tmp_b;
-                        find_b = 1;
-                    }
-                    printf("b : %d\n", tmp_b -> val);
-                    push(tmp_b);
-                    stack_push(stk, tmp_b);
-                    tmp_t = tmp_t -> left;
-                    tmp_b = tmp_b -> left;
-                }
-                else{
-                    tmp_a = tmp_t;
-                    if(!find_a){
-                        a = tmp_a;
-                        find_a = 1;
-                    }
-                    printf("a : %d\n", tmp_a -> val);
-                    push(tmp_a);
-                    stack_push(stk, tmp_a);
-                    p -=(tmp_t -> left -> size) - 1;
-                    tmp_t = tmp_t -> right;
-                    tmp_a = tmp_a -> right;
-                }
+            printf("both null\n");
+            condition = 3;
+        }
+            
+        // found node belongs to a, next find right child
+        if(condition == 1){
+            printf("tmp_a's pri > tmp_b'spri\n");
+            if(tmp_a -> rev){
+                printf("push a\n");
+                push(tmp_a);
+            } 
+            stack_push(stk, tmp_a);
+            if(!find){
+                find = 1;
+                t = tmp_a;
+                printf("t : %d\n", tmp_a -> val);
+                tmp_t = t;
             }
-            // current node is leaf
             else{
-                printf("current node is leaf\n");
-                if(p > 0){
-                    tmp_a = tmp_t;
-                    if(!find_a){
-                        a = tmp_a;
-                        find_a = 1;
-                    }
-                    printf("a : %d\n", tmp_a -> val);
-                    push(tmp_a);
-                    stack_push(stk, tmp_a);
-                    tmp_t = tmp_t -> right;
-                    tmp_a = tmp_a -> right;
-                    p--;
+                if(left){
+                    printf("left\n");
+                    tmp_t -> left = tmp_a;
+                    tmp_t = tmp_t -> left;
                 }
                 else{
-                    tmp_b = tmp_t;
-                    if(!find_b){
-                        b = tmp_b;
-                        find_b = 1;
-                    }
-                    printf("b : %d\n", tmp_b -> val);
-                    push(tmp_b);
-                    stack_push(stk, tmp_b);
-                    tmp_t = tmp_t -> left;
-                    tmp_b = tmp_b -> left;
+                    printf("right\n");
+                    tmp_t -> right = tmp_a;
+                    tmp_t = tmp_t -> right;
                 }
             }
+            tmp_a = tmp_a -> right;
+            left = 0;
+        }
+        // found node belongs to b, next find left child
+        else if(condition == 2){
+            printf("tmp_b's pri > tmp_a'spri\n");
+            if(tmp_b -> rev){
+                printf("push b\n");
+                push(tmp_b);
+            }
+            stack_push(stk, tmp_b);
+            if(!find){
+                find = 1;
+                t = tmp_b;
+                printf("t : %d\n", tmp_b -> val);
+                tmp_t = t;
+            }
+            else{
+                if(left){
+                    printf("left\n");
+                    tmp_t -> left = tmp_b;
+                    tmp_t = tmp_t -> left;
+                }
+                else{
+                    printf("right\n");
+                    // printf("tmp_t : %d", tmp_t -> val);
+                    tmp_t -> right = tmp_b;
+                    tmp_t = tmp_t -> right;
+                    // if(tmp_t -> left) printf(", tmp_t's left : %d\n", tmp_t -> left -> val);
+                    // if(tmp_t -> right) printf(", tmp_t's right : %d\n", tmp_t -> right -> val);
+                }
+            }
+            tmp_b = tmp_b -> left;
+            left = 1;
+        }
+        else if(condition = 3){
+            if(left)
+                tmp_t -> left = NULL;
+            else
+                tmp_t -> right = NULL;
+            break;
         }
     }
+    printf("t : %d", t -> val);
+    if(t -> left){
+        printf(", t's left : %d, ", t -> left -> val);
+        if(t -> left -> left){
+            printf(", t's left left : %d, ", t -> left -> left -> val);
+            if(t -> left -> left -> right){
+                printf(", t's left left right: %d, ", t -> left -> left -> right -> val);
+            }
+        }
+        if(t -> left -> right){
+            printf(", t's left right : %d, ", t -> left -> right -> val);
+        }
+    }
+    if(t -> right) printf(", t's right : %d", t -> right -> val);
+    printf("\n");
     printf("pull\n");
-    tmp_a = tmp_b = NULL;
     while(!stack_is_empty(stk)){
         pull(stack_peek(stk));
         stack_pop(stk);
     }
+    free(stk);
+    printf("done\n");
+    return t;
+}
+
+// split to two array, with a whose key <= p and b whose key > p
+void split(treap *t, int p, treap **a, treap **b){
+    Stack *stk = calloc(1, sizeof(Stack));
+    treap *tmp_t = t, *tmp_a = NULL, *tmp_b = NULL;
+    bool find_a = false, find_b = false; // turn = 0 when end with a -> right, 1 when end with b -> left
+    // split until encounter leaf node
+    while(tmp_t){
+        printf("current node : %d, p : %d\n", tmp_t -> val, p);
+        if(tmp_t -> rev)
+            push(tmp_t);
+        if(tmp_t -> left){
+            if(tmp_t -> left -> size >= p){
+                // turn = 1;
+                if(!find_b){
+                    find_b = 1;
+                    *b = tmp_t;
+                    tmp_b = *b;
+                    printf("tmp_b = b = %d\n", (*b) -> val);
+                    stack_push(stk, tmp_b);
+                }
+                else{
+                    tmp_b -> left = tmp_t;
+                    tmp_b = tmp_b -> left;
+                    printf("b's left : %d\n", (*b) -> left -> val);
+                    stack_push(stk, tmp_b);
+                }
+                tmp_t = tmp_t -> left; 
+            }
+            else{
+                // turn = 0;
+                p -= (tmp_t -> left -> size + 1);
+                if(!find_a){
+                    find_a = 1;
+                    *a = tmp_t;
+                    tmp_a = *a;
+                    printf("tmp_a = a = %d\n", (*a) -> val);
+                    stack_push(stk, tmp_a);
+                }
+                else{
+                    tmp_a -> right = tmp_t;
+                    tmp_a = tmp_a -> right;
+                    printf("a's right : %d", (*a) -> right -> val);
+                    stack_push(stk, tmp_a);
+                }
+                tmp_t = tmp_t -> right;
+            }
+        }
+        // current node has no left child
+        else if(p > 0){
+            printf("current node has no left child, p > 0\n");
+            // turn = 0;
+            p--;
+            if(!find_a){
+                find_a = 1;
+                *a = tmp_t;
+                tmp_a = *a;
+                stack_push(stk, tmp_a);
+            }
+            else{
+                tmp_a -> right = tmp_t;
+                tmp_a = tmp_a -> right;
+                stack_push(stk, tmp_a);
+            }
+            tmp_t = tmp_t -> right;
+        }
+        else{
+            printf("current node has no left child, p = 0\n");
+            // turn = 1;
+            if(!find_b){
+                find_b = 1;
+                *b = tmp_t;
+                tmp_b = *b;
+                stack_push(stk, tmp_b);
+            }
+            else{
+                tmp_b -> left = tmp_t;
+                tmp_b = tmp_b -> left;
+                stack_push(stk, tmp_b);
+            }
+            tmp_t = tmp_t -> left;
+        }
+    }
+    if(tmp_a)
+        tmp_a -> right = NULL;
+    if(tmp_b)
+        tmp_b -> left = NULL;
+    
+    printf("pull\n");
+    while(!stack_is_empty(stk)){
+        pull(stack_peek(stk));
+        stack_pop(stk);
+    }
+    free(stk);
 }
 
 // insert val k at location p
 void insert(treap *t, int p, int k){
-    treap *lt, *rt;
-    split(t, p, lt, rt);
+    treap *lt = NULL, *rt = NULL;
+    split(t, p, &lt, &rt);
     merge(merge(lt, new(k)), rt);
 }
 
-void delete(treap *t, int k){
-    treap *lt, *rt;
-    split(t, k - 1, lt, t);
-    split(t, k, t, rt);
-    t = merge(lt, rt);
+void delete(treap *t, int p){
+    treap *a = NULL, *b = NULL, *c = NULL, *d = NULL;
+    split(t, p - 1, &a, &b);
+    split(t, 1, &c, &d);
+    t = merge(a, d);
 }
 
 long long getsum(treap *t, int l, int r){
-    printf("l : %d, r : %d\n", l, r);
-    treap *a, *b, *c, *d;
-    split(t, l - 1, a, b);
-    printf("t's val : %d\n", t -> val);
-    printf("t's sum : %lld\n", t -> sum);
-    printf("a's val : %d\n", a -> val);
-    printf("a's sum : %lld\n", a -> sum);
-    printf("b's val : %d\n", b -> val);
-    printf("b's sum : %lld\n", b -> sum);
-    // split(b, r - l + 1, c, d);
-    // long long sum = c -> sum;
-    // merge(a, merge(c, d));
-    // return sum;
+    // treap *a, *b, *c, *d;
+    treap *a = NULL, *b = NULL, *c = NULL, *d = NULL;
+    split(t, l - 1, &a, &b);
+    // printf("t's val : %d\n", t -> val);
+    // printf("t's sum : %lld\n", t -> sum);
+    // printf("t's left : %d, sum : %d\n", t -> left -> val, t -> left -> sum);
+    // printf("a's val : %d\n", a -> val);
+    // printf("a's sum : %lld\n", a -> sum);
+    // printf("b's val : %d\n", b -> val);
+    // printf("b's sum : %lld\n", b -> sum);
+    printf("\n");
+    split(b, r - l + 1, &c, &d);
+    printf("\n");
+    long long sum = c -> sum;
+    t = merge(a, merge(c, d));
+    printf("getsum done, sum : %lld", sum);
+    return sum;
 }
 
 void reverse (treap *t , int l , int r){
-    treap *a, *b, *c, *d;
-    split(t, l - 1, a, b);
-    split(b, r - l + 1, c, d);
-    // Drt x = Split ( rt , l - 1 ) ;
+    treap *a = NULL, *b = NULL, *c = NULL, *d = NULL;
+    split(t, l - 1, &a, &b);
+    split(b, r - l + 1, &c, &d);
+    // Drt x = Split ( rt , l - 1 );
     // Drt y = Split ( x.second , r - l + 1 );
     c -> rev = true;
+    printf("c's sum : %d\n", c -> sum);
+    printf("d's sum : %d\n", d -> sum);
     t = merge(a, merge(c, d));
     a = b = c = d = NULL;
     return ;
 }
 
 void swap(treap *t, int l, int r, int x, int y, int N){
-    treap *a, *b, *c, *d, *e, *f, *g, *h;
+    treap *a = NULL, *b = NULL, *c = NULL, *d = NULL, *e = NULL, *f = NULL, *g = NULL, *h = NULL;
     if(l == 1 && y == N){
-        split(t, r, a, b);
-        split(b, x - r, c, d);
+        split(t, r, &a, &b);
+        split(b, x - r, &c, &d);
         merge(d, merge(c, a));
     }
     else if(l == 1){
-        split(t, r, a, b);
-        split(b, x - r, c, d);
-        split(d, y - x + 1, e, f);
+        split(t, r, &a, &b);
+        split(b, x - r, &c, &d);
+        split(d, y - x + 1, &e, &f);
         merge(e, merge(c, merge(a, f)));
     }
     else if(y == N){
-        split(t, l - 1, a, b);
-        split(b, r - l + 1, c, d);
-        split(d, x - r + 1, e, f);
+        split(t, l - 1, &a, &b);
+        split(b, r - l + 1, &c, &d);
+        split(d, x - r + 1, &e, &f);
         merge(a, merge(f, merge(e, c)));
     }
     else{
-        split(t, l - 1, a, b);
-        split(b, r - l + 1, c, d);
-        split(d, x - r + 1, e, f);
-        split(f, y - x + 1, g, h);
+        split(t, l - 1, &a, &b);
+        split(b, r - l + 1, &c, &d);
+        split(d, x - r + 1, &e, &f);
+        split(f, y - x + 1, &g, &h);
         t = merge(a, merge(g, merge(e, merge(c, h))));
     }
     a = b = c = d = e = f = g = h = NULL;
@@ -292,15 +391,17 @@ int main() {
     treap *t = NULL, *tmp = NULL;
     for(int i = 1; i <= N; i++){
         tmp = new(reboot[i]);
+        printf("merge %d\n", tmp -> val);
         t = merge(t, tmp);
+        printf("t now : %d", t -> val);
+        if(t -> left) printf(", left : %d, ", t -> left -> val);
+        if(t -> right) printf(", right : %d", t -> right -> val);
+        printf("\n");
     }
     tmp = NULL;
-    printf("t's val : %d, sum : %lld, size : %d\n", t -> val, t -> sum, t -> size);
-    printf("t's left val : %d, sum : %lld, size : %d\n", t -> left -> val, t -> left -> sum, t -> left -> size);
-    printf("t's left right val : %d, sum : %lld, size : %d\n", t -> left -> right -> val, t -> left -> right -> sum, t -> left -> right -> size);
-    printf("t's left rihgt left val : %d\n", t -> left -> right -> left -> val);
-    printf("t's left rihgt left left val : %d\n", t -> left -> right -> left -> left -> val);
-    
+    // printf("t : %d, size : %d, sum : %d\n", t -> val, t -> size, t -> sum);
+    // printf("t's left : %d, size : %d, sum : %d\n", t -> left -> val, t -> left -> size, t -> left -> sum);
+    // printf("t's right : %d, size : %d, sum : %d\n", t -> right -> val, t -> right -> size, t -> right -> sum);
     printf("\nread input\n\n");
     for(int i = 1; i <= Q; i++){
         scanf("%d", &Cmd[i].cmd);
@@ -327,11 +428,13 @@ int main() {
     for(int i = 1; i <= Q; i++){
         // insert
         if(Cmd[i].cmd == 1){
-            printf("1 : p = %d, k = %lld\n", Cmd[i].p, Cmd[i].k);
+            printf("INSERT : p = %d, k = %lld\n", Cmd[i].p, Cmd[i].k);
             if(!Cmd[i].p){
+                printf("no split since p = 0\n");
                 t = merge(new(Cmd[i].k), t);
             }
             else if(Cmd[i].p == N){
+                printf("no split since p = N\n");
                 t = merge(t, new(Cmd[i].k));
             }
             else
@@ -340,13 +443,13 @@ int main() {
         }
         // delete
         else if(Cmd[i].cmd == 2){
-            printf("2 : p = %d\n", Cmd[i].p);
+            printf("DELETE : p = %d\n", Cmd[i].p);
             if(Cmd[i].p == 1){
-                split(t, 1, a, b);
+                split(t, 1, &a, &b);
                 t = b;
             }
             else if(Cmd[i].p == N){
-                split(t, N - 1, a, b);
+                split(t, N - 1, &a, &b);
                 t = a;
             }
             else
@@ -357,16 +460,16 @@ int main() {
         }
         // reverse
         else if(Cmd[i].cmd == 3){
-            printf("3 : l = %d, r = %d\n", Cmd[i].l, Cmd[i].r);
+            printf("REVERSE : l = %d, r = %d\n", Cmd[i].l, Cmd[i].r);
             if(Cmd[i].l == 1 && Cmd[i].r == N)
                 t -> rev = true;
             else if(Cmd[i].l == 1){
-                split(t, Cmd[i].r, a, b);
+                split(t, Cmd[i].r, &a, &b);
                 a -> rev = true;
                 t = merge(a, b);
             }
             else if(Cmd[i].r == N){
-                split(t, Cmd[i].l - 1, a, b);
+                split(t, Cmd[i].l - 1, &a, &b);
                 b -> rev = true;
                 t = merge(a, b);
             }
@@ -376,7 +479,7 @@ int main() {
         }
         // swap
         else if(Cmd[i].cmd == 4){
-            printf("4 : l = %d, r = %d, x = %d, y = %d\n", Cmd[i].l, Cmd[i].r, Cmd[i].x, Cmd[i].y);
+            printf("SWAP : l = %d, r = %d, x = %d, y = %d\n", Cmd[i].l, Cmd[i].r, Cmd[i].x, Cmd[i].y);
             // switch (l, r), (x, y)
             if(Cmd[i].l > Cmd[i].x){
                 int temp1 = Cmd[i].l, temp2 = Cmd[i].r;
@@ -393,9 +496,38 @@ int main() {
         }
         // getsum
         else if(Cmd[i].cmd == 6){
-            printf("6 : l = %d, r = %d\n", Cmd[i].l, Cmd[i].r);
+            printf("GETSUM : l = %d, r = %d\n", Cmd[i].l, Cmd[i].r);
             printf("sum : %lld\n", getsum(t, Cmd[i].l, Cmd[i].r));
         }
+        printf("root : %d", t -> val);
+        if(t -> left){
+            printf(", t's left : %d, ", t -> left -> val);
+            if(t -> left -> left){
+                printf(", t's left left: %d, ", t -> left -> left -> val);
+                if(t -> left -> left -> right){
+                    printf(", t's left left right: %d, ", t -> left -> left -> right -> val);
+                }
+            }
+            if(t -> left -> right){
+                printf(", t's left right: %d, ", t -> left -> right -> val);
+                if(t -> left -> right -> left){
+                    printf(", t's left right left: %d, ", t -> left -> right -> left -> val);
+                }
+            }
+        }
+        if(t -> right){
+            printf(", t's right : %d", t -> right -> val);
+            if(t -> right -> right){
+                printf(", t's right right: %d", t -> right -> right -> val);
+            }
+            if(t -> right -> left){
+                printf(", t's right left: %d", t -> right -> left -> val);
+                if(t -> right -> left -> right){
+                    printf(", t's right left right : %d", t -> right -> left -> right -> val);
+                }
+            }
+        }
+        printf("\n");
     }
     printf("end\n");
     //------------------------------------------------------------------------------print command
